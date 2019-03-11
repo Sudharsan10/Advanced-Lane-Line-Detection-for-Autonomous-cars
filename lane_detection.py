@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # Importing the Video
     # =================================================================================================================================================================== #
     cap = cv.VideoCapture('Data/project_video.mp4')
-    # cap = cv.VideoCapture('Data/challenge_video.mp4')
+    #cap = cv.VideoCapture('Data/challenge_video.mp4')
     count = 0
 
     # ============================================================================================================================================================= #
@@ -121,8 +121,8 @@ if __name__ == '__main__':
         # Unwarpping the Image
         # ============================================================================================================================================================= #
         bird_view = cv.warpPerspective(denoised_kf, H_mat, (900, 600))
-        # kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-        # bird_view = cv.filter2D(bird_view, -1, kernel)
+        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        bird_view = cv.filter2D(bird_view, -1, kernel)
         # =================================================================================================================================================================== #
         # Improving contrast
         # =================================================================================================================================================================== #
@@ -132,6 +132,10 @@ if __name__ == '__main__':
         cl = clahe.apply(l)
         ca = clahe.apply(a)
         cb = clahe.apply(b)
+        flag = cb > 175
+        cb[flag] = 255  
+        cl[flag] = 255
+        ca[flag] = 170           
         limg = cv.merge((cl, ca, cb))
         cv.imshow('limg', limg)
         bird_view = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
@@ -141,7 +145,8 @@ if __name__ == '__main__':
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
         warped_gray = cv.cvtColor(bird_view, cv.COLOR_BGR2GRAY)
-        ret, thresh_warped = cv.threshold(warped_gray, 190, 255, cv.THRESH_BINARY)
+        ret, thresh_warped = cv.threshold(warped_gray, 200, 255, cv.THRESH_BINARY)
+        cv.imshow("xc,", thresh_warped)
         sobelx = cv.Sobel(bird_view, cv.CV_64F, 1, 0, ksize=5)
         sobely = cv.Sobel(warped_gray, cv.CV_64F, 0, 1, ksize=5)
         abs_sobely = np.absolute(sobely)
