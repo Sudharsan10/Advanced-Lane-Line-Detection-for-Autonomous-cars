@@ -22,25 +22,29 @@ import cv2 as cv
 def adjust_lane(x, y, img):
     new_x = 0
     i = 0
-    while i < 100:
+    x_dot = 0
+    centroid = 0
+    while i < 50:
         rect_right = img[y-10:y+10, x+i-10:x+i+10]
         hist_right = np.sum(rect_right[:, :], axis=0)
         try:
-            if hist_right.mean() > 400:
+            if hist_right.mean() > 50:
                 new_x = x + i
-                # x_dot = np.where(hist_left == np.amax(hist_left[:]))
-                return new_x
+                x_dot = np.where(hist_right == np.amax(hist_right[:]))
+                centroid = x_dot[0][0]
+                return new_x, centroid
             rect_left = img[y-10:y+10, x-i-10:x-i+10]
             hist_left = np.sum(rect_left[:, :], axis=0)
-            if hist_left.mean() > 400:
-                # x_dot = np.where(hist_right == np.amax(hist_right[:]))
+            if hist_left.mean() > 50:
+                x_dot = np.where(hist_left == np.amax(hist_left[:]))
                 new_x = x - i
-                return new_x
+                centroid = x_dot[0][0]
+                return new_x, centroid
         except:
             new_x = None
 
         i += 1
-    return new_x
+    return new_x, centroid
 
 
 def fit_curve(left_lanex, left_laney, right_lanex, right_laney, img):
@@ -75,7 +79,7 @@ if __name__ == '__main__':
     # Importing the Video
     # =================================================================================================================================================================== #
     cap = cv.VideoCapture('Data/project_video.mp4')
-    #cap = cv.VideoCapture('Data/challenge_video.mp4')
+    # cap = cv.VideoCapture('Data/challenge_video.mp4')
     count = 0
 
     # ============================================================================================================================================================= #
@@ -115,7 +119,7 @@ if __name__ == '__main__':
         # Denoising the Image
         # ============================================================================================================================================================= #
         # denoised_kf = cv.fastNlMeansDenoisingColored(key_frame, None, 10, 10, 7, 15)
-        denoised_kf = cv.bilateralFilter(key_frame, 9, 75, 75)
+        denoised_kf = cv.bilateralFilter(key_frame, 16, 100, 100)
         
         # ============================================================================================================================================================= #
         # Unwarpping the Image
@@ -126,77 +130,81 @@ if __name__ == '__main__':
         # =================================================================================================================================================================== #
         # Improving contrast
         # =================================================================================================================================================================== #
+        hls = cv.cvtColor(bird_view, cv.COLOR_BGR2HLS)
+        h, l1, s = cv.split(hls)
+        l1_flag = l1 > 190
+        l1[l1_flag] = 255
+        n_hls = cv.merge((h, l1, s))
+        bird_view = cv.cvtColor(n_hls, cv.COLOR_HLS2BGR)
         lab = cv.cvtColor(bird_view, cv.COLOR_BGR2LAB)
-        l, a, b = cv.split(lab)        
+        l2, a, b = cv.split(lab)  
         clahe = cv.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))        
-        cl = clahe.apply(l)
+        cl = clahe.apply(l2)
         ca = clahe.apply(a)
         cb = clahe.apply(b)
-        flag = cb > 175
-        cb[flag] = 255  
-        cl[flag] = 255
-        ca[flag] = 170           
+        l2_flag = cb > 175
+        cb[l2_flag] = 255  
+        cl[l2_flag] = 255
         limg = cv.merge((cl, ca, cb))
-        cv.imshow('limg', limg)
         bird_view = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
-        bird_view = cv.bilateralFilter(bird_view, 9, 90, 90)
-        cv.imshow('CLAHE output', bird_view)
+        bird_view = cv.bilateralFilter(bird_view, 16, 100, 100)
         # ============================================================================================================================================================= #
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
         warped_gray = cv.cvtColor(bird_view, cv.COLOR_BGR2GRAY)
         ret, thresh_warped = cv.threshold(warped_gray, 200, 255, cv.THRESH_BINARY)
         cv.imshow("xc,", thresh_warped)
-        sobelx = cv.Sobel(bird_view, cv.CV_64F, 1, 0, ksize=5)
-        sobely = cv.Sobel(warped_gray, cv.CV_64F, 0, 1, ksize=5)
-        abs_sobely = np.absolute(sobely)
-        sobely_u8 = np.uint8(abs_sobely)
-        laplacian = cv.Laplacian(thresh_warped, cv.CV_64F)
-        mask = cv.bitwise_and(thresh_warped, sobely_u8)
-        histogram = np.sum(mask[300:, 250:650], axis=0)
-        # plt.plot(histogram)
+        
+        histogram = np.sum(thresh_warped[300:, 300:600], axis=0)
         midpoint = np.int(histogram.shape[0]/2)
         left_lane_base = np.where(histogram == np.amax(histogram[:midpoint]))
         right_lane_base = np.where(histogram == np.amax(histogram[midpoint:]))
-        left_lane_basex = left_lane_base[0][0] + 250
-        right_lane_basex = right_lane_base[0][0] + 250
-        mask_copy = copy.copy(mask)
+        left_lane_basex = left_lane_base[0][0] + 300
+        right_lane_basex = right_lane_base[0][0] + 300
+        mask_copy = copy.copy(thresh_warped)
         cv.circle(mask_copy, (left_lane_basex, 580), 5, (255, 0, 255), -1)
         cv.circle(mask_copy, (right_lane_basex, 580), 5, (255, 0, 255), -1)
 
         # # Get boxes on the lane points and fit curve
-        # y = mask.shape[1]
+        y = mask_copy.shape[1]
         # left_lane_currentx = left_lane_basex
         # right_lane_currentx = right_lane_basex
-        # left_lanex = []
-        # left_laney = []
-        # right_lanex = []
-        # right_laney = []
+        left_lanex = []
+        left_laney = []
+        right_lanex = []
+        right_laney = []
 
         # left_lanex.append(left_lane_currentx)
         # left_laney.append(y)
         # right_lanex.append(right_lane_currentx)
         # right_laney.append(y)
 
-        # while(y > 10):
-        #     left_lane_newx = adjust_lane(left_lane_currentx, y, mask_copy)    
-        #     right_lane_newx = adjust_lane(right_lane_currentx, y, mask_copy)
-            
-        #     if left_lane_newx != 0:
-        #         cv.rectangle(mask_copy,(left_lane_newx-10,y-10),(left_lane_newx+10,y+10),(255,255,255),3) 
-        #         left_lanex.append(left_lane_newx)
-        #         left_laney.append(y)
-        #     if right_lane_newx != 0:
-        #         cv.rectangle(mask_copy,(right_lane_newx-10,y-10),(right_lane_newx+10,y+10),(255,255,255),3)    
-        #         right_lanex.append(right_lane_newx)
-        #         right_laney.append(y)
+        while(y > 200):
+            left_lane_currentx, centroid = adjust_lane(left_lane_basex, y, mask_copy)
+            right_lane_currentx, centroid = adjust_lane(right_lane_basex, y, mask_copy)
+            if left_lane_currentx != 0:
+                cv.rectangle(mask_copy, (left_lane_currentx-10, y-10),
+                            (left_lane_currentx+10, y+10), (0, 255, 0), 3)
+                left_lanex.append(centroid + left_lane_currentx-10)
+                left_laney.append(y)
+                cv.circle(mask_copy, (centroid + left_lane_currentx-10, y),
+                        5, (255, 0, 0), -1)
 
-        #     left_lane_currentx = left_lane_newx
-        #     right_lane_currentx = right_lane_newx
+            if right_lane_currentx != 0:
+                cv.rectangle(mask_copy, (right_lane_currentx-10, y-10),
+                            (right_lane_currentx+10, y+10), (0, 255, 0), 3)
+                right_lanex.append(centroid + right_lane_currentx-10)
+                right_laney.append(y)
+                cv.circle(mask_copy, (centroid + right_lane_currentx-10, y),
+                        5, (255, 0, 0), -1)
 
-        #     y -= 20
+            # left_lane_currentx = left_lane_newx
+            # right_lane_currentx = right_lane_newx
 
-        # fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
+            y -= 20
+        # if left_lanex.size() != 0 and right_lanex.size() != 0 :    
+        fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
+        # elif right_lanex
 
 
         cv.imshow("Masked", mask_copy)
