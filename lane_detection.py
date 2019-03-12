@@ -17,6 +17,37 @@ import numpy as np
 import cv2 as cv
 
 # ======================================================================================================================================================================= #
+# Function Inverse warp
+# ======================================================================================================================================================================= #
+def inverse_warp(undist, warped_img, left_fit, right_fit, M):
+    # get image height. So we get y values from 0 to img height-1
+    img_height = warped_img.shape[0]
+    # get list of all y coordinates
+    y_coord = np.linspace(0, img_height-1, img_height)
+    
+    # Get x coordinates for left and right lanes using polyfit values
+    left_x = left_fit[0]*y_coord**2 + left_fit[1]*y_coord + left_fit[2]
+    right_x = right_fit[0]*y_coord**2 + right_fit[1]*y_coord + right_fit[2]
+
+    # create a numpy array of warped_img size so we can draw on it
+    warp_zero = np.zeros_like(warped_img).astype(np.uint8)
+    # make it three channel
+    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+    # use y and y coordinates of each line to get point format
+    pts_left = np.array([np.transpose(np.vstack([left_x, y_coord]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_x, y_coord])))])
+    points = np.hstack((pts_left, pts_right))
+
+    # Draw the lane on warped image
+    cv.fillPoly(color_warp, np.int_([points]), (0,255, 0))
+    # Calculate M inverse so we can warp this region on world frame
+    Minv = np.linalg.inv(M)
+    new_warp = cv.warpPerspective(color_warp, Minv, (undist.shape[1], undist.shape[0])) 
+    # Combine with original frame
+    unwarped = cv.addWeighted(undist, 1, new_warp, 0.4, 0)
+    return unwarped
+# ======================================================================================================================================================================= #
 # Function Definition Section
 # ======================================================================================================================================================================= #
 def adjust_lane(x, y, img):
@@ -82,7 +113,6 @@ if __name__ == '__main__':
     cap = cv.VideoCapture('Data/project_video.mp4')
     # cap = cv.VideoCapture('Data/challenge_video.mp4')
     count = 0
-
     # ============================================================================================================================================================= #
     # Camera Parameters
     # ============================================================================================================================================================= #
@@ -126,14 +156,14 @@ if __name__ == '__main__':
         # Unwarpping the Image
         # ============================================================================================================================================================= #
         bird_view = cv.warpPerspective(denoised_kf, H_mat, (900, 600))
-        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-        bird_view = cv.filter2D(bird_view, -1, kernel)
+        # kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        # bird_view = cv.filter2D(bird_view, -1, kernel)
         # =================================================================================================================================================================== #
         # Improving contrast
         # =================================================================================================================================================================== #
         hls = cv.cvtColor(bird_view, cv.COLOR_BGR2HLS)
         h, l1, s = cv.split(hls)
-        l1_flag = l1 > 190
+        l1_flag = l1 > 180
         l1[l1_flag] = 255
         n_hls = cv.merge((h, l1, s))
         bird_view = cv.cvtColor(n_hls, cv.COLOR_HLS2BGR)
@@ -146,17 +176,17 @@ if __name__ == '__main__':
         cl = clahe.apply(l2)
         ca = clahe.apply(a)
         cb = clahe.apply(b)
-        l2_flag = cb > 175
+        l2_flag = cb > 185
         cb[l2_flag] = 255  
         cl[l2_flag] = 255
         limg = cv.merge((cl, ca, cb))
         bird_view = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
-        bird_view = cv.bilateralFilter(bird_view, 16, 100, 100)
+        #bird_view = cv.bilateralFilter(bird_view, 16, 100, 100)
         # ============================================================================================================================================================= #
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
         warped_gray = cv.cvtColor(bird_view, cv.COLOR_BGR2GRAY)
-        ret, thresh_warped = cv.threshold(warped_gray, 190, 255, cv.THRESH_BINARY)
+        ret, thresh_warped = cv.threshold(warped_gray, 210, 255, cv.THRESH_BINARY)
         cv.imshow("xc,", thresh_warped)
         
         histogram = np.sum(thresh_warped[350:, 250:650], axis=0)
@@ -203,10 +233,10 @@ if __name__ == '__main__':
             y -= 20
         
         left, right = fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
-        
-        cv.imshow("Masked", mask_copy)
-        cv.imshow("Original", key_frame)
-
+        result = inverse_warp(key_frame, mask_copy, left, right, H_mat)
+        #cv.imshow("Masked", mask_copy)
+        #cv.imshow("Original", key_frame)
+        cv.imshow("unwarped", result)
         # ============================================================================================================================================================= #
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
