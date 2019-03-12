@@ -70,6 +70,7 @@ def fit_curve(left_lanex, left_laney, right_lanex, right_laney, img):
         cv.fillPoly(img, np.int_([right_line_pts]), (255, 255, 255))
     except:
         pass
+    return left_coeffs, right_coeffs
 
 # ======================================================================================================================================================================= #
 # Lane Detection codes
@@ -201,11 +202,8 @@ if __name__ == '__main__':
                         5, (255, 0, 0), -1)
             y -= 20
         
-        fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
-        # # elif right_lanex.size() !=0 :
-
-
-
+        left, right = fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
+        
         cv.imshow("Masked", mask_copy)
         cv.imshow("Original", key_frame)
 
