@@ -23,7 +23,7 @@ def adjust_lane(x, y, img):
     new_x = 0
     i = 0
     x_dot = 0
-    centroid = 0
+    centroid = +10
     while i < 50:
         rect_right = img[y-10:y+10, x+i-10:x+i+10]
         hist_right = np.sum(rect_right[:, :], axis=0)
@@ -136,6 +136,9 @@ if __name__ == '__main__':
         l1[l1_flag] = 255
         n_hls = cv.merge((h, l1, s))
         bird_view = cv.cvtColor(n_hls, cv.COLOR_HLS2BGR)
+        # ============================================================================================================================================================= #
+        # Thresholding the Unwarpped Image
+        # ============================================================================================================================================================= #
         lab = cv.cvtColor(bird_view, cv.COLOR_BGR2LAB)
         l2, a, b = cv.split(lab)  
         clahe = cv.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))        
@@ -152,66 +155,59 @@ if __name__ == '__main__':
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
         warped_gray = cv.cvtColor(bird_view, cv.COLOR_BGR2GRAY)
-        ret, thresh_warped = cv.threshold(warped_gray, 200, 255, cv.THRESH_BINARY)
+        ret, thresh_warped = cv.threshold(warped_gray, 190, 255, cv.THRESH_BINARY)
         cv.imshow("xc,", thresh_warped)
         
-        histogram = np.sum(thresh_warped[300:, 300:600], axis=0)
+        histogram = np.sum(thresh_warped[350:, 250:650], axis=0)
         midpoint = np.int(histogram.shape[0]/2)
         left_lane_base = np.where(histogram == np.amax(histogram[:midpoint]))
         right_lane_base = np.where(histogram == np.amax(histogram[midpoint:]))
-        left_lane_basex = left_lane_base[0][0] + 300
-        right_lane_basex = right_lane_base[0][0] + 300
+        left_lane_basex = left_lane_base[0][0] + 250
+        right_lane_basex = right_lane_base[0][0] + 250
+        if abs(left_lane_basex - right_lane_basex) < 100 or abs(left_lane_basex - right_lane_basex) > 220:
+            right_lane_basex = left_lane_basex +  200
         mask_copy = copy.copy(thresh_warped)
         cv.circle(mask_copy, (left_lane_basex, 580), 5, (255, 0, 255), -1)
         cv.circle(mask_copy, (right_lane_basex, 580), 5, (255, 0, 255), -1)
 
         # # Get boxes on the lane points and fit curve
-        y = mask_copy.shape[1]
-        # left_lane_currentx = left_lane_basex
-        # right_lane_currentx = right_lane_basex
+        y = mask_copy.shape[1] - 30
+        
         left_lanex = []
         left_laney = []
         right_lanex = []
         right_laney = []
 
-        # left_lanex.append(left_lane_currentx)
-        # left_laney.append(y)
-        # right_lanex.append(right_lane_currentx)
-        # right_laney.append(y)
+        
+        while(y > 10):
 
-        while(y > 200):
-            left_lane_currentx, centroid = adjust_lane(left_lane_basex, y, mask_copy)
-            right_lane_currentx, centroid = adjust_lane(right_lane_basex, y, mask_copy)
+            left_lane_currentx, centroid_l = adjust_lane(left_lane_basex, y, mask_copy)
+            right_lane_currentx, centroid_r = adjust_lane(right_lane_basex, y, mask_copy)
+            
             if left_lane_currentx != 0:
                 cv.rectangle(mask_copy, (left_lane_currentx-10, y-10),
                             (left_lane_currentx+10, y+10), (0, 255, 0), 3)
-                left_lanex.append(centroid + left_lane_currentx-10)
+                left_lanex.append(centroid_l + left_lane_currentx-10)
                 left_laney.append(y)
-                cv.circle(mask_copy, (centroid + left_lane_currentx-10, y),
+                cv.circle(mask_copy, (centroid_l + left_lane_currentx-10, y),
                         5, (255, 0, 0), -1)
 
             if right_lane_currentx != 0:
                 cv.rectangle(mask_copy, (right_lane_currentx-10, y-10),
                             (right_lane_currentx+10, y+10), (0, 255, 0), 3)
-                right_lanex.append(centroid + right_lane_currentx-10)
+                right_lanex.append(centroid_r + right_lane_currentx-10)
                 right_laney.append(y)
-                cv.circle(mask_copy, (centroid + right_lane_currentx-10, y),
+                cv.circle(mask_copy, (centroid_r + right_lane_currentx-10, y),
                         5, (255, 0, 0), -1)
-
-            # left_lane_currentx = left_lane_newx
-            # right_lane_currentx = right_lane_newx
-
             y -= 20
-        # if left_lanex.size() != 0 and right_lanex.size() != 0 :    
+        
         fit_curve(left_lanex, left_laney, right_lanex, right_laney, mask_copy)
-        # elif right_lanex
+        # # elif right_lanex.size() !=0 :
+
 
 
         cv.imshow("Masked", mask_copy)
         cv.imshow("Original", key_frame)
-        # ============================================================================================================================================================= #
-        # Thresholding the Unwarpped Image
-        # ============================================================================================================================================================= #
 
         # ============================================================================================================================================================= #
         # Thresholding the Unwarpped Image
