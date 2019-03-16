@@ -110,8 +110,8 @@ if __name__ == '__main__':
 
     # Importing the Video
     # =================================================================================================================================================================== #
-    cap = cv.VideoCapture('Data/project_video.mp4')
-    # cap = cv.VideoCapture('Data/challenge_video.mp4')
+    # cap = cv.VideoCapture('Data/project_video.mp4')
+    cap = cv.VideoCapture('Data/challenge_video.mp4')
     count = 0
     # ============================================================================================================================================================= #
     # Camera Parameters
@@ -132,6 +132,10 @@ if __name__ == '__main__':
     reference = np.array([[600, 450], [715, 450], [1280, 670], [185, 670]])
     target = np.array([[300, 0], [600, 0], [600, 600], [300, 600]])
 
+    reference = np.array([[570, 500], [730, 500], [1280, 670], [185, 670]])
+    target = np.array([[300, 0], [600, 0], [600, 600], [300, 600]])
+
+
     H_mat, status = cv.findHomography(reference, target)
 
     while True:
@@ -151,42 +155,45 @@ if __name__ == '__main__':
         # ============================================================================================================================================================= #
         # denoised_kf = cv.fastNlMeansDenoisingColored(key_frame, None, 10, 10, 7, 15)
         denoised_kf = cv.bilateralFilter(key_frame, 16, 100, 100)
-        
-        # ============================================================================================================================================================= #
-        # Unwarpping the Image
-        # ============================================================================================================================================================= #
-        bird_view = cv.warpPerspective(denoised_kf, H_mat, (900, 600))
-        # kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
-        # bird_view = cv.filter2D(bird_view, -1, kernel)
         # =================================================================================================================================================================== #
         # Improving contrast
         # =================================================================================================================================================================== #
-        hls = cv.cvtColor(bird_view, cv.COLOR_BGR2HLS)
+        hls = cv.cvtColor(denoised_kf, cv.COLOR_BGR2HLS)
         h, l1, s = cv.split(hls)
-        l1_flag = l1 > 180
+        l1_flag = l1 > 190
         l1[l1_flag] = 255
         n_hls = cv.merge((h, l1, s))
-        bird_view = cv.cvtColor(n_hls, cv.COLOR_HLS2BGR)
-        # ============================================================================================================================================================= #
-        # Thresholding the Unwarpped Image
-        # ============================================================================================================================================================= #
-        lab = cv.cvtColor(bird_view, cv.COLOR_BGR2LAB)
+        denoised_kf = cv.cvtColor(n_hls, cv.COLOR_HLS2BGR)
+        
+        lab = cv.cvtColor(denoised_kf, cv.COLOR_BGR2LAB)
         l2, a, b = cv.split(lab)  
         clahe = cv.createCLAHE(clipLimit=5.0, tileGridSize=(8, 8))        
         cl = clahe.apply(l2)
         ca = clahe.apply(a)
         cb = clahe.apply(b)
-        l2_flag = cb > 185
+        l2_flag = cb > 160
         cb[l2_flag] = 255  
         cl[l2_flag] = 255
+        
         limg = cv.merge((cl, ca, cb))
-        bird_view = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
+        denoised_kf = cv.cvtColor(limg, cv.COLOR_LAB2BGR)
+        cv.imshow("eq ori,", denoised_kf)
+        kernel = np.array([[-1, -1, -1], [-1, 9, -1], [-1, -1, -1]])
+        denoised_kf = cv.filter2D(denoised_kf, -1, kernel)
         #bird_view = cv.bilateralFilter(bird_view, 16, 100, 100)
+        gray = cv.cvtColor(denoised_kf, cv.COLOR_BGR2GRAY)
+        # gray_eq = cv.equalizeHist(gray)
+        # ============================================================================================================================================================= #
+        # Unwarpping the Image
+        # ============================================================================================================================================================= #
+        bird_view = cv.warpPerspective(gray, H_mat, (900, 600))
         # ============================================================================================================================================================= #
         # Thresholding the Unwarpped Image
         # ============================================================================================================================================================= #
-        warped_gray = cv.cvtColor(bird_view, cv.COLOR_BGR2GRAY)
-        ret, thresh_warped = cv.threshold(warped_gray, 210, 255, cv.THRESH_BINARY)
+        # ============================================================================================================================================================= #
+        # Thresholding the Unwarpped Image
+        # ============================================================================================================================================================= #
+        ret, thresh_warped = cv.threshold(bird_view, 230, 255, cv.THRESH_BINARY)
         cv.imshow("xc,", thresh_warped)
         
         histogram = np.sum(thresh_warped[350:, 250:650], axis=0)
